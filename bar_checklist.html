@@ -326,7 +326,7 @@ async function syncCheck(captain, outlet, type, item, checked) {
   clearTimeout(syncTimeout);
   syncTimeout = setTimeout(async () => {
     try {
-      await formPost(API_URL, { action: 'saveCheck', captain, outlet, type, item, checked });
+      await jsonp(API_URL + '?action=saveCheck&captain=' + encodeURIComponent(captain) + '&outlet=' + encodeURIComponent(outlet) + '&type=' + encodeURIComponent(type) + '&item=' + encodeURIComponent(item) + '&checked=' + checked);
       setSyncState('synced');
     } catch(e) {
       setSyncState('error');
@@ -338,7 +338,7 @@ async function syncConfigToServer(cfg) {
   if (!API_URL) return;
   setSyncState('syncing');
   try {
-    await formPost(API_URL, { action: 'saveConfig', config: cfg });
+    await jsonp(API_URL + '?action=saveConfig&data=' + encodeURIComponent(JSON.stringify(cfg)));
     setSyncState('synced');
   } catch(e) {
     setSyncState('error');
