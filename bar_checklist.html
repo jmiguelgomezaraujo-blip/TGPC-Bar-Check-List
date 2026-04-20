@@ -1,0 +1,692 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<title>Bar Checklist</title>
+<style>
+  :root {
+    --teal: #1D9E75;
+    --teal-light: #E1F5EE;
+    --teal-dark: #085041;
+    --blue: #378ADD;
+    --blue-light: #E6F1FB;
+    --blue-dark: #0C447C;
+    --amber: #EF9F27;
+    --amber-light: #FAEEDA;
+    --amber-dark: #633806;
+    --red: #E24B4A;
+    --red-light: #FCEBEB;
+    --red-dark: #791F1F;
+    --gray-50: #F8F8F8;
+    --gray-100: #F0F0F0;
+    --gray-200: #E0E0E0;
+    --gray-400: #9E9E9E;
+    --gray-600: #616161;
+    --gray-800: #212121;
+    --radius: 10px;
+    --radius-sm: 6px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; background: #f5f5f5; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: var(--gray-800); }
+
+  /* ---- LAYOUT ---- */
+  #app { display: flex; flex-direction: column; min-height: 100vh; }
+  #header { background: #fff; border-bottom: 1px solid var(--gray-200); padding: 14px 16px 0; position: sticky; top: 0; z-index: 100; }
+  #header-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+  #hotel-name { font-size: 17px; font-weight: 600; color: var(--gray-800); }
+  #sync-indicator { font-size: 12px; color: var(--gray-400); display: flex; align-items: center; gap: 4px; }
+  #sync-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--gray-200); flex-shrink: 0; }
+  #sync-dot.synced { background: var(--teal); }
+  #sync-dot.syncing { background: var(--amber); animation: pulse 1s infinite; }
+  #sync-dot.error { background: var(--red); }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+
+  /* ---- TABS ---- */
+  #tabs { display: flex; gap: 0; }
+  .tab { flex: 1; padding: 10px 0 10px; font-size: 13px; font-weight: 500; color: var(--gray-400); border: none; background: transparent; cursor: pointer; border-bottom: 2px solid transparent; transition: all .15s; }
+  .tab.active { color: var(--blue); border-bottom-color: var(--blue); }
+
+  /* ---- CONTENT ---- */
+  #content { flex: 1; padding: 16px; max-width: 600px; margin: 0 auto; width: 100%; }
+  .screen { display: none; }
+  .screen.visible { display: block; }
+
+  /* ---- SELECTOR ROW ---- */
+  .selector-label { font-size: 11px; font-weight: 600; color: var(--gray-400); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 8px; }
+  select, .styled-select {
+    width: 100%; padding: 12px 14px; border-radius: var(--radius-sm); border: 1.5px solid var(--gray-200);
+    background: #fff; font-size: 15px; color: var(--gray-800); appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg width='12' height='8' viewBox='0 0 12 8' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L6 7L11 1' stroke='%239E9E9E' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 14px center;
+    margin-bottom: 12px;
+  }
+  select:focus { outline: none; border-color: var(--blue); }
+
+  /* ---- TYPE PILLS ---- */
+  .pill-row { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+  .pill { padding: 7px 16px; border-radius: 20px; border: 1.5px solid var(--gray-200); background: #fff; font-size: 13px; font-weight: 500; color: var(--gray-600); cursor: pointer; transition: all .15s; }
+  .pill.active-apertura { background: var(--teal-light); border-color: var(--teal); color: var(--teal-dark); }
+  .pill.active-cierre { background: var(--blue-light); border-color: var(--blue); color: var(--blue-dark); }
+  .pill.active-montaje { background: var(--amber-light); border-color: var(--amber); color: var(--amber-dark); }
+
+  /* ---- OUTLET GRID ---- */
+  .outlet-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; margin-bottom: 20px; }
+  .outlet-card { background: #fff; border: 1.5px solid var(--gray-200); border-radius: var(--radius); padding: 12px; cursor: pointer; transition: all .15s; }
+  .outlet-card:active { transform: scale(0.97); }
+  .outlet-card.selected { border-color: var(--blue); background: var(--blue-light); }
+  .outlet-card.done { border-color: var(--teal); background: var(--teal-light); }
+  .outlet-card-name { font-size: 13px; font-weight: 600; color: var(--gray-800); margin-bottom: 4px; }
+  .outlet-card.selected .outlet-card-name, .outlet-card.done .outlet-card-name { color: var(--blue-dark); }
+  .outlet-card.done .outlet-card-name { color: var(--teal-dark); }
+  .outlet-card-prog { font-size: 11px; color: var(--gray-400); margin-bottom: 5px; }
+  .prog-bar { height: 3px; background: var(--gray-200); border-radius: 2px; overflow: hidden; }
+  .prog-fill { height: 100%; border-radius: 2px; transition: width .3s; background: var(--gray-400); }
+  .outlet-card.selected .prog-fill { background: var(--blue); }
+  .outlet-card.done .prog-fill { background: var(--teal); }
+
+  /* ---- CHECKLIST ---- */
+  .checklist-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+  .checklist-title { font-size: 17px; font-weight: 600; }
+  .pct-badge { font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 12px; }
+  .pct-0 { background: var(--gray-100); color: var(--gray-600); }
+  .pct-part { background: var(--amber-light); color: var(--amber-dark); }
+  .pct-100 { background: var(--teal-light); color: var(--teal-dark); }
+  .section-title { font-size: 11px; font-weight: 700; color: var(--gray-400); text-transform: uppercase; letter-spacing: .07em; margin: 16px 0 6px; }
+  .check-card { background: #fff; border-radius: var(--radius); border: 1px solid var(--gray-200); overflow: hidden; margin-bottom: 4px; }
+  .check-item { display: flex; align-items: center; gap: 12px; padding: 13px 14px; cursor: pointer; border-bottom: 1px solid var(--gray-100); transition: background .1s; }
+  .check-item:last-child { border-bottom: none; }
+  .check-item:active { background: var(--gray-50); }
+  .check-box { width: 22px; height: 22px; border-radius: 6px; border: 2px solid var(--gray-200); flex-shrink: 0; display: flex; align-items: center; justify-content: center; transition: all .15s; }
+  .check-box.checked { background: var(--teal); border-color: var(--teal); }
+  .check-tick { display: none; }
+  .check-box.checked .check-tick { display: block; }
+  .check-text { font-size: 14px; color: var(--gray-800); line-height: 1.3; }
+  .check-text.done { color: var(--gray-400); text-decoration: line-through; }
+  .ts-bar { font-size: 11px; color: var(--gray-400); margin-bottom: 12px; }
+
+  /* ---- DASHBOARD ---- */
+  .metrics-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 20px; }
+  .metric { background: #fff; border-radius: var(--radius-sm); padding: 12px; text-align: center; border: 1px solid var(--gray-200); }
+  .metric-val { font-size: 22px; font-weight: 700; color: var(--gray-800); }
+  .metric-label { font-size: 11px; color: var(--gray-400); margin-top: 2px; }
+  .captain-card { background: #fff; border-radius: var(--radius); border: 1px solid var(--gray-200); margin-bottom: 10px; overflow: hidden; }
+  .captain-card-header { padding: 12px 14px; border-bottom: 1px solid var(--gray-100); display: flex; align-items: center; justify-content: space-between; }
+  .captain-card-name { font-size: 15px; font-weight: 600; }
+  .captain-pct { font-size: 13px; color: var(--gray-400); }
+  .dash-row { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-bottom: 1px solid var(--gray-100); }
+  .dash-row:last-child { border-bottom: none; }
+  .dash-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+  .dash-outlet { font-size: 13px; flex: 1; }
+  .dash-type { font-size: 11px; color: var(--gray-400); }
+  .dash-ts { font-size: 11px; color: var(--gray-400); }
+  .dash-pct { font-size: 12px; font-weight: 600; min-width: 36px; text-align: right; }
+  .dash-bar-wrap { width: 50px; }
+  .refresh-btn { width: 100%; padding: 13px; background: var(--blue-light); color: var(--blue-dark); border: none; border-radius: var(--radius-sm); font-size: 14px; font-weight: 600; cursor: pointer; margin-bottom: 16px; }
+  .refresh-btn:active { opacity: .8; }
+
+  /* ---- CONFIG ---- */
+  .config-section { background: #fff; border-radius: var(--radius); border: 1px solid var(--gray-200); padding: 16px; margin-bottom: 12px; }
+  .config-section-title { font-size: 14px; font-weight: 600; margin-bottom: 12px; }
+  .config-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .config-input { flex: 1; padding: 10px 12px; border-radius: var(--radius-sm); border: 1.5px solid var(--gray-200); font-size: 14px; }
+  .config-input:focus { outline: none; border-color: var(--blue); }
+  .btn-remove { padding: 8px 12px; background: var(--red-light); color: var(--red-dark); border: none; border-radius: var(--radius-sm); font-size: 12px; font-weight: 600; cursor: pointer; flex-shrink: 0; }
+  .btn-add { width: 100%; padding: 10px; background: var(--gray-50); border: 1.5px dashed var(--gray-200); border-radius: var(--radius-sm); font-size: 13px; color: var(--gray-600); cursor: pointer; }
+  .btn-save { width: 100%; padding: 14px; background: var(--teal); color: #fff; border: none; border-radius: var(--radius-sm); font-size: 15px; font-weight: 600; cursor: pointer; margin-top: 8px; }
+  .btn-save:active { opacity: .85; }
+  .api-note { font-size: 12px; color: var(--gray-400); margin-top: 8px; line-height: 1.5; }
+
+  /* ---- EMPTY ---- */
+  .empty-state { text-align: center; padding: 3rem 1rem; color: var(--gray-400); }
+  .empty-state .icon { font-size: 40px; margin-bottom: 12px; }
+  .empty-state p { font-size: 14px; line-height: 1.6; }
+
+  /* ---- LOADING ---- */
+  #loading-overlay { position: fixed; inset: 0; background: rgba(255,255,255,.9); display: flex; align-items: center; justify-content: center; z-index: 999; }
+  .spinner { width: 32px; height: 32px; border: 3px solid var(--gray-200); border-top-color: var(--blue); border-radius: 50%; animation: spin .7s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<div id="loading-overlay"><div class="spinner"></div></div>
+
+<div id="app">
+  <div id="header">
+    <div id="header-top">
+      <span id="hotel-name">Bar Checklist</span>
+      <span id="sync-indicator">
+        <span id="sync-dot"></span>
+        <span id="sync-text">Conectando...</span>
+      </span>
+    </div>
+    <div id="tabs">
+      <button class="tab active" data-tab="captain">Capitán</button>
+      <button class="tab" data-tab="dashboard">Dashboard</button>
+      <button class="tab" data-tab="config">Ajustes</button>
+    </div>
+  </div>
+
+  <div id="content">
+    <!-- CAPITÁN -->
+    <div id="screen-captain" class="screen visible">
+      <div class="selector-label">Tu nombre</div>
+      <select id="captain-select"><option value="">— Selecciona —</option></select>
+      <div class="pill-row" id="type-pills"></div>
+      <div class="outlet-grid" id="outlet-grid"></div>
+      <div id="checklist-area"></div>
+    </div>
+
+    <!-- DASHBOARD -->
+    <div id="screen-dashboard" class="screen">
+      <button class="refresh-btn" id="refresh-btn">Actualizar dashboard</button>
+      <div class="metrics-row" id="dash-metrics"></div>
+      <div id="dash-detail"></div>
+    </div>
+
+    <!-- CONFIG -->
+    <div id="screen-config" class="screen">
+      <div class="config-section">
+        <div class="config-section-title">URL de la API</div>
+        <input class="config-input" id="api-url-input" placeholder="https://script.google.com/macros/s/.../exec" style="width:100%;margin-bottom:6px">
+        <div class="api-note">Pega aquí la URL de tu implementación de Google Apps Script. Sin esta URL la app funciona en modo offline solamente.</div>
+      </div>
+      <div class="config-section">
+        <div class="config-section-title">Nombre del hotel</div>
+        <input class="config-input" id="hotel-name-input" placeholder="Nombre del hotel" style="width:100%">
+      </div>
+      <div class="config-section">
+        <div class="config-section-title">Capitanes y sus outlets</div>
+        <div id="captains-config"></div>
+        <button class="btn-add" id="add-captain-btn">+ Agregar capitán</button>
+      </div>
+      <button class="btn-save" id="save-config-btn">Guardar y sincronizar configuración</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// CONFIGURACIÓN — CAMBIA ESTA URL
+// ============================================================
+let API_URL = localStorage.getItem('bar_api_url') || '';
+
+// ============================================================
+// ESTADO
+// ============================================================
+let config = null;
+let records = {};   // { "captain|outlet|type|item": { checked, timestamp } }
+let currentCaptain = localStorage.getItem('bar_captain') || '';
+let currentOutlet = '';
+let currentType = 'apertura';
+let syncTimeout = null;
+
+const TURNO_LABELS = { apertura: 'Apertura', cierre: 'Cierre', montaje: 'Montaje' };
+
+// ============================================================
+// INIT
+// ============================================================
+async function init() {
+  loadFromLocal();
+  buildUI();
+  showLoading(false);
+  
+  if (API_URL) {
+    setSyncState('syncing');
+    try {
+      await loadFromServer();
+      buildUI();
+      setSyncState('synced');
+    } catch(e) {
+      setSyncState('error');
+    }
+  } else {
+    setSyncState('synced');
+  }
+}
+
+// ============================================================
+// SERVER CALLS
+// ============================================================
+async function loadFromServer() {
+  const [cfgRes, recRes] = await Promise.all([
+    fetch(API_URL + '?action=getConfig'),
+    fetch(API_URL + '?action=getAll')
+  ]);
+  const cfgData = await cfgRes.json();
+  const recData = await recRes.json();
+  
+  config = cfgData.config;
+  localStorage.setItem('bar_config', JSON.stringify(config));
+  
+  records = {};
+  if (recData.records) {
+    recData.records.forEach(r => {
+      const key = `${r.captain}|${r.outlet}|${r.type}|${r.item}`;
+      records[key] = { checked: r.checked === true || r.checked === 'TRUE', timestamp: r.timestamp };
+    });
+  }
+  localStorage.setItem('bar_records', JSON.stringify(records));
+}
+
+function loadFromLocal() {
+  const savedConfig = localStorage.getItem('bar_config');
+  config = savedConfig ? JSON.parse(savedConfig) : getDefaultConfig();
+  const savedRec = localStorage.getItem('bar_records');
+  records = savedRec ? JSON.parse(savedRec) : {};
+}
+
+async function syncCheck(captain, outlet, type, item, checked) {
+  const key = `${captain}|${outlet}|${type}|${item}`;
+  const ts = new Date().toISOString();
+  records[key] = { checked, timestamp: ts };
+  localStorage.setItem('bar_records', JSON.stringify(records));
+  
+  if (!API_URL) return;
+  
+  setSyncState('syncing');
+  clearTimeout(syncTimeout);
+  syncTimeout = setTimeout(async () => {
+    try {
+      await fetch(API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'saveCheck', captain, outlet, type, item, checked })
+      });
+      setSyncState('synced');
+    } catch(e) {
+      setSyncState('error');
+    }
+  }, 600);
+}
+
+async function syncConfigToServer(cfg) {
+  if (!API_URL) return;
+  setSyncState('syncing');
+  try {
+    await fetch(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'saveConfig', config: cfg })
+    });
+    setSyncState('synced');
+  } catch(e) {
+    setSyncState('error');
+  }
+}
+
+// ============================================================
+// UI HELPERS
+// ============================================================
+function setSyncState(state) {
+  const dot = document.getElementById('sync-dot');
+  const txt = document.getElementById('sync-text');
+  dot.className = state;
+  txt.textContent = state === 'synced' ? 'Sincronizado' : state === 'syncing' ? 'Sincronizando...' : 'Sin conexión';
+}
+
+function showLoading(v) {
+  document.getElementById('loading-overlay').style.display = v ? 'flex' : 'none';
+}
+
+function getProgress(captain, outlet, type) {
+  const sections = config.checklists[type] || {};
+  const items = Object.values(sections).flat();
+  if (!items.length) return { done: 0, total: 0, pct: 0 };
+  const done = items.filter(item => {
+    const key = `${captain}|${outlet}|${type}|${item}`;
+    return records[key]?.checked;
+  }).length;
+  return { done, total: items.length, pct: Math.round(done / items.length * 100) };
+}
+
+function getLastTs(captain, outlet, type) {
+  const sections = config.checklists[type] || {};
+  const items = Object.values(sections).flat();
+  let latest = null;
+  items.forEach(item => {
+    const key = `${captain}|${outlet}|${type}|${item}`;
+    const ts = records[key]?.timestamp;
+    if (ts && (!latest || ts > latest)) latest = ts;
+  });
+  if (!latest) return null;
+  const d = new Date(latest);
+  return d.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
+}
+
+// ============================================================
+// BUILD UI
+// ============================================================
+function buildUI() {
+  document.getElementById('hotel-name').textContent = config.hotelName || 'Bar Checklist';
+  buildCaptainSelect();
+  buildTypePills();
+  renderOutletGrid();
+  renderChecklist();
+  if (currentCaptain) document.getElementById('captain-select').value = currentCaptain;
+}
+
+function buildCaptainSelect() {
+  const sel = document.getElementById('captain-select');
+  sel.innerHTML = '<option value="">— Selecciona tu nombre —</option>';
+  config.captains.forEach(c => {
+    const o = document.createElement('option');
+    o.value = c.name; o.textContent = c.name;
+    sel.appendChild(o);
+  });
+  sel.onchange = () => {
+    currentCaptain = sel.value;
+    currentOutlet = '';
+    localStorage.setItem('bar_captain', currentCaptain);
+    renderOutletGrid();
+    renderChecklist();
+  };
+}
+
+function buildTypePills() {
+  const el = document.getElementById('type-pills');
+  el.innerHTML = '';
+  Object.keys(config.checklists).forEach(t => {
+    const b = document.createElement('button');
+    b.className = 'pill' + (t === currentType ? ` active-${t}` : '');
+    b.textContent = TURNO_LABELS[t] || t;
+    b.onclick = () => {
+      currentType = t;
+      document.querySelectorAll('.pill').forEach(x => x.className = 'pill');
+      b.className = `pill active-${t}`;
+      renderOutletGrid();
+      renderChecklist();
+    };
+    el.appendChild(b);
+  });
+}
+
+function renderOutletGrid() {
+  const el = document.getElementById('outlet-grid');
+  el.innerHTML = '';
+  if (!currentCaptain) return;
+  const cap = config.captains.find(c => c.name === currentCaptain);
+  if (!cap) return;
+  cap.outlets.forEach(o => {
+    const p = getProgress(currentCaptain, o, currentType);
+    const card = document.createElement('div');
+    card.className = 'outlet-card' + (o === currentOutlet ? ' selected' : '') + (p.pct === 100 ? ' done' : '');
+    card.innerHTML = `<div class="outlet-card-name">${o}</div>
+      <div class="outlet-card-prog">${p.done}/${p.total}</div>
+      <div class="prog-bar"><div class="prog-fill" style="width:${p.pct}%"></div></div>`;
+    card.onclick = () => { currentOutlet = o; renderOutletGrid(); renderChecklist(); };
+    el.appendChild(card);
+  });
+}
+
+function renderChecklist() {
+  const el = document.getElementById('checklist-area');
+  el.innerHTML = '';
+  if (!currentCaptain || !currentOutlet) {
+    el.innerHTML = `<div class="empty-state"><div class="icon">&#9654;</div><p>${!currentCaptain ? 'Selecciona tu nombre para comenzar' : 'Selecciona un outlet para ver el checklist'}</p></div>`;
+    return;
+  }
+  const p = getProgress(currentCaptain, currentOutlet, currentType);
+  const ts = getLastTs(currentCaptain, currentOutlet, currentType);
+  const pctClass = p.pct === 0 ? 'pct-0' : p.pct === 100 ? 'pct-100' : 'pct-part';
+  
+  const header = document.createElement('div');
+  header.className = 'checklist-header';
+  header.innerHTML = `<div class="checklist-title">${currentOutlet}</div><span class="pct-badge ${pctClass}">${p.pct}%</span>`;
+  el.appendChild(header);
+  
+  if (ts) {
+    const tsEl = document.createElement('div');
+    tsEl.className = 'ts-bar';
+    tsEl.textContent = 'Actualizado: ' + ts;
+    el.appendChild(tsEl);
+  }
+  
+  const sections = config.checklists[currentType] || {};
+  Object.entries(sections).forEach(([sec, items]) => {
+    const st = document.createElement('div');
+    st.className = 'section-title';
+    st.textContent = sec;
+    el.appendChild(st);
+    
+    const card = document.createElement('div');
+    card.className = 'check-card';
+    items.forEach(item => {
+      const key = `${currentCaptain}|${currentOutlet}|${currentType}|${item}`;
+      const checked = records[key]?.checked || false;
+      const row = document.createElement('div');
+      row.className = 'check-item';
+      const checkedClass = checked ? ' checked' : '';
+      const doneClass = checked ? ' done' : '';
+      row.innerHTML = '<div class="check-box' + checkedClass + '"><svg class="check-tick" width="13" height="13" viewBox="0 0 13 13" fill="none"><polyline points="2,6.5 5.5,10 11,3" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div><span class="check-text' + doneClass + '">' + item + '</span>';
+      row.onclick = () => {
+        const newVal = !records[key]?.checked;
+        syncCheck(currentCaptain, currentOutlet, currentType, item, newVal);
+        renderOutletGrid();
+        renderChecklist();
+      };
+      card.appendChild(row);
+    });
+    el.appendChild(card);
+  });
+}
+
+// ============================================================
+// DASHBOARD
+// ============================================================
+function renderDashboard() {
+  const metrics = document.getElementById('dash-metrics');
+  const detail = document.getElementById('dash-detail');
+  metrics.innerHTML = ''; detail.innerHTML = '';
+  
+  let totalDone = 0, totalItems = 0, completedChecklists = 0, totalChecklists = 0;
+  const types = Object.keys(config.checklists);
+  
+  config.captains.forEach(cap => {
+    cap.outlets.forEach(out => {
+      types.forEach(type => {
+        const p = getProgress(cap.name, out, type);
+        totalDone += p.done; totalItems += p.total;
+        totalChecklists++;
+        if (p.pct === 100) completedChecklists++;
+      });
+    });
+  });
+  
+  const overall = totalItems > 0 ? Math.round(totalDone / totalItems * 100) : 0;
+  [
+    { val: overall + '%', label: 'Progreso general' },
+    { val: completedChecklists + '/' + totalChecklists, label: 'Completos' },
+    { val: totalDone + '/' + totalItems, label: 'Ítems' }
+  ].forEach(m => {
+    const d = document.createElement('div');
+    d.className = 'metric';
+    d.innerHTML = `<div class="metric-val">${m.val}</div><div class="metric-label">${m.label}</div>`;
+    metrics.appendChild(d);
+  });
+  
+  config.captains.forEach(cap => {
+    let capDone = 0, capTotal = 0;
+    cap.outlets.forEach(out => {
+      types.forEach(type => {
+        const p = getProgress(cap.name, out, type);
+        capDone += p.done; capTotal += p.total;
+      });
+    });
+    const capPct = capTotal > 0 ? Math.round(capDone / capTotal * 100) : 0;
+    
+    const card = document.createElement('div');
+    card.className = 'captain-card';
+    card.innerHTML = `<div class="captain-card-header"><span class="captain-card-name">${cap.name}</span><span class="captain-pct">${capPct}%</span></div>`;
+    
+    cap.outlets.forEach(out => {
+      types.forEach(type => {
+        const p = getProgress(cap.name, out, type);
+        const ts = getLastTs(cap.name, out, type);
+        const dotColor = p.pct === 100 ? '#1D9E75' : p.pct > 0 ? '#EF9F27' : '#E0E0E0';
+        const row = document.createElement('div');
+        row.className = 'dash-row';
+        row.innerHTML = `
+          <div class="dash-dot" style="background:${dotColor}"></div>
+          <div style="flex:1">
+            <div class="dash-outlet">${out} <span class="dash-type">${TURNO_LABELS[type] || type}</span></div>
+            ${ts ? `<div class="dash-ts">${ts}</div>` : ''}
+          </div>
+          <div class="dash-pct" style="color:${p.pct===100?'#1D9E75':p.pct>0?'#EF9F27':'#9E9E9E'}">${p.pct}%</div>
+          <div class="dash-bar-wrap"><div class="prog-bar"><div class="prog-fill" style="width:${p.pct}%;background:${dotColor}"></div></div></div>`;
+        card.appendChild(row);
+      });
+    });
+    detail.appendChild(card);
+  });
+}
+
+// ============================================================
+// CONFIG SCREEN
+// ============================================================
+function renderConfigScreen() {
+  document.getElementById('api-url-input').value = API_URL;
+  document.getElementById('hotel-name-input').value = config.hotelName || '';
+  
+  const capCfg = document.getElementById('captains-config');
+  capCfg.innerHTML = '';
+  
+  config.captains.forEach((cap, ci) => {
+    const section = document.createElement('div');
+    section.style.cssText = 'border:1px solid #E0E0E0;border-radius:8px;padding:10px;margin-bottom:10px;background:#FAFAFA';
+    
+    const nameRow = document.createElement('div');
+    nameRow.className = 'config-row';
+    nameRow.innerHTML = `<input class="config-input" placeholder="Nombre del capitán" value="${cap.name}" data-ci="${ci}" data-field="name">
+      <button class="btn-remove" data-ci="${ci}">Eliminar</button>`;
+    section.appendChild(nameRow);
+    
+    const outLabel = document.createElement('div');
+    outLabel.style.cssText = 'font-size:11px;color:#9E9E9E;margin-bottom:6px;margin-top:4px;font-weight:600;text-transform:uppercase;letter-spacing:.05em';
+    outLabel.textContent = 'Outlets';
+    section.appendChild(outLabel);
+    
+    cap.outlets.forEach((out, oi) => {
+      const row = document.createElement('div');
+      row.className = 'config-row';
+      row.innerHTML = `<input class="config-input" placeholder="Nombre del outlet" value="${out}" data-ci="${ci}" data-oi="${oi}" data-field="outlet">
+        <button class="btn-remove" data-ci="${ci}" data-oi="${oi}">-</button>`;
+      section.appendChild(row);
+    });
+    
+    const addOut = document.createElement('button');
+    addOut.className = 'btn-add';
+    addOut.textContent = '+ Agregar outlet';
+    addOut.style.marginTop = '4px';
+    addOut.dataset.ci = ci;
+    addOut.onclick = () => { config.captains[ci].outlets.push(''); renderConfigScreen(); };
+    section.appendChild(addOut);
+    
+    capCfg.appendChild(section);
+  });
+  
+  capCfg.querySelectorAll('input[data-field="name"]').forEach(inp => {
+    inp.oninput = () => { config.captains[parseInt(inp.dataset.ci)].name = inp.value; };
+  });
+  capCfg.querySelectorAll('input[data-field="outlet"]').forEach(inp => {
+    inp.oninput = () => { config.captains[parseInt(inp.dataset.ci)].outlets[parseInt(inp.dataset.oi)] = inp.value; };
+  });
+  capCfg.querySelectorAll('button[data-ci]').forEach(btn => {
+    btn.onclick = () => {
+      const ci = parseInt(btn.dataset.ci);
+      if (btn.dataset.oi !== undefined) {
+        config.captains[ci].outlets.splice(parseInt(btn.dataset.oi), 1);
+      } else {
+        config.captains.splice(ci, 1);
+      }
+      renderConfigScreen();
+    };
+  });
+}
+
+document.getElementById('add-captain-btn').onclick = () => {
+  config.captains.push({ name: '', outlets: [''] });
+  renderConfigScreen();
+};
+
+document.getElementById('save-config-btn').onclick = async () => {
+  const newUrl = document.getElementById('api-url-input').value.trim();
+  API_URL = newUrl;
+  localStorage.setItem('bar_api_url', API_URL);
+  
+  config.hotelName = document.getElementById('hotel-name-input').value.trim();
+  localStorage.setItem('bar_config', JSON.stringify(config));
+  
+  await syncConfigToServer(config);
+  buildUI();
+  alert('Configuración guardada.');
+};
+
+// ============================================================
+// TABS
+// ============================================================
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.onclick = () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('visible'));
+    tab.classList.add('active');
+    const id = 'screen-' + tab.dataset.tab;
+    document.getElementById(id).classList.add('visible');
+    if (tab.dataset.tab === 'dashboard') {
+      loadFromLocal();
+      if (API_URL) loadFromServer().then(() => { renderDashboard(); setSyncState('synced'); }).catch(() => setSyncState('error'));
+      else renderDashboard();
+    }
+    if (tab.dataset.tab === 'config') renderConfigScreen();
+  };
+});
+
+document.getElementById('refresh-btn').onclick = async () => {
+  setSyncState('syncing');
+  try {
+    if (API_URL) await loadFromServer();
+    renderDashboard();
+    setSyncState('synced');
+  } catch(e) { setSyncState('error'); }
+};
+
+// ============================================================
+// DEFAULT CONFIG
+// ============================================================
+function getDefaultConfig() {
+  return {
+    hotelName: 'Bar Checklist',
+    captains: [
+      { name: 'Capitán 1', outlets: ['Outlet A', 'Outlet B', 'Outlet C'] },
+      { name: 'Capitán 2', outlets: ['Outlet B', 'Outlet C', 'Outlet D'] },
+    ],
+    checklists: {
+      apertura: {
+        'Licores y bares': ['Verificar inventario de licores abiertos','Confirmar par stock completo','Revisar fechas de vencimiento','Preparar mise en place de garnishes','Surtir neveras y back bar'],
+        'Equipo y limpieza': ['Limpiar y sanitizar superficies de trabajo','Verificar operación de equipo (licuadoras, hielo)','Revisar cristalería — sin roturas ni manchas','Confirmar funcionamiento de POS','Colocar servilletas y menús'],
+        'Operación': ['Verificar apertura de caja chica','Revisar carta vigente y especiales del día','Confirmar personal en turno','Recibir briefing del turno anterior']
+      },
+      cierre: {
+        'Licores y bares': ['Contar y registrar inventario de licores','Devolver sobrantes al almacén','Cerrar y sellar productos abiertos','Limpiar dispensadores y pistolas de refresco','Vaciar y limpiar hieleras'],
+        'Equipo y limpieza': ['Limpiar y sanitizar toda la barra','Lavar y guardar cristalería','Limpiar equipos (licuadoras, batidoras)','Barrer y trapear área de trabajo','Apagar equipos no necesarios'],
+        'Operación': ['Cerrar turno en POS','Entregar reporte de ventas','Reportar incidencias del turno','Dejar briefing para turno siguiente']
+      },
+      montaje: {
+        'Presentación': ['Mantel o base limpia y sin arrugas','Cristalería pulida y alineada','Botellas limpias y etiquetas al frente','Garnish tray completo y fresco','Iluminación verificada'],
+        'Mise en place': ['Utensilios completos (shakers, jiggers, cucharas)','Servilletas dobladas uniformemente','Hielo listo (cubos, granizado)','Jugo y mezclas del día preparados','Menú de cócteles visible'],
+        'Estándares': ['Uniforme completo y correcto','Área perimetral limpia','Depósito de basura cubierto','Bitácora de turno disponible']
+      }
+    }
+  };
+}
+
+// ============================================================
+// START
+// ============================================================
+init();
+</script>
+</body>
+</html>
