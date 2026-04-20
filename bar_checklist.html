@@ -249,15 +249,50 @@ async function init() {
 }
 
 // ============================================================
-// SERVER CALLS
+// SERVER CALLS — JSONP para GET, form POST para writes
 // ============================================================
+function jsonp(url) {
+  return new Promise((resolve, reject) => {
+    const cb = 'cb_' + Math.random().toString(36).slice(2);
+    window[cb] = (data) => { delete window[cb]; script.remove(); resolve(data); };
+    const script = document.createElement('script');
+    script.src = url + '&callback=' + cb;
+    script.onerror = () => { delete window[cb]; script.remove(); reject(new Error('JSONP error')); };
+    document.head.appendChild(script);
+  });
+}
+
+function formPost(url, data) {
+  return new Promise((resolve) => {
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = url;
+    form.target = '_hidden_iframe';
+    const input = document.createElement('input');
+    input.type = 'hidden';
+    input.name = 'data';
+    input.value = JSON.stringify(data);
+    form.appendChild(input);
+    let iframe = document.getElementById('_hidden_iframe');
+    if (!iframe) {
+      iframe = document.createElement('iframe');
+      iframe.name = '_hidden_iframe';
+      iframe.id = '_hidden_iframe';
+      iframe.style.display = 'none';
+      document.body.appendChild(iframe);
+    }
+    document.body.appendChild(form);
+    form.submit();
+    form.remove();
+    setTimeout(resolve, 1000);
+  });
+}
+
 async function loadFromServer() {
-  const [cfgRes, recRes] = await Promise.all([
-    fetch(API_URL + '?action=getConfig'),
-    fetch(API_URL + '?action=getAll')
+  const [cfgData, recData] = await Promise.all([
+    jsonp(API_URL + '?action=getConfig'),
+    jsonp(API_URL + '?action=getAll')
   ]);
-  const cfgData = await cfgRes.json();
-  const recData = await recRes.json();
   
   config = cfgData.config;
   localStorage.setItem('bar_config', JSON.stringify(config));
@@ -265,7 +300,7 @@ async function loadFromServer() {
   records = {};
   if (recData.records) {
     recData.records.forEach(r => {
-      const key = `${r.captain}|${r.outlet}|${r.type}|${r.item}`;
+      const key = r.captain + '|' + r.outlet + '|' + r.type + '|' + r.item;
       records[key] = { checked: r.checked === true || r.checked === 'TRUE', timestamp: r.timestamp };
     });
   }
@@ -280,7 +315,7 @@ function loadFromLocal() {
 }
 
 async function syncCheck(captain, outlet, type, item, checked) {
-  const key = `${captain}|${outlet}|${type}|${item}`;
+  const key = captain + '|' + outlet + '|' + type + '|' + item;
   const ts = new Date().toISOString();
   records[key] = { checked, timestamp: ts };
   localStorage.setItem('bar_records', JSON.stringify(records));
@@ -291,11 +326,7 @@ async function syncCheck(captain, outlet, type, item, checked) {
   clearTimeout(syncTimeout);
   syncTimeout = setTimeout(async () => {
     try {
-      await fetch(API_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'saveCheck', captain, outlet, type, item, checked })
-      });
+      await formPost(API_URL, { action: 'saveCheck', captain, outlet, type, item, checked });
       setSyncState('synced');
     } catch(e) {
       setSyncState('error');
@@ -307,11 +338,7 @@ async function syncConfigToServer(cfg) {
   if (!API_URL) return;
   setSyncState('syncing');
   try {
-    await fetch(API_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'saveConfig', config: cfg })
-    });
+    await formPost(API_URL, { action: 'saveConfig', config: cfg });
     setSyncState('synced');
   } catch(e) {
     setSyncState('error');
