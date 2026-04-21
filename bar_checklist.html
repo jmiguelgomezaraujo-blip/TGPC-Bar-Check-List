@@ -212,7 +212,8 @@
 // ============================================================
 // CONFIGURACIÓN — CAMBIA ESTA URL
 // ============================================================
-let API_URL = localStorage.getItem('bar_api_url') || '';
+let API_URL = localStorage.getItem('bar_api_url') || 'https://script.google.com/macros/s/AKfycbyvhar96jquO1r1OggTniONJrCH9XoVgaozh0pT0PWESlHIB3c1GHGvdBeyZHQ7kfgV/exec';
+if (!localStorage.getItem('bar_api_url')) localStorage.setItem('bar_api_url', API_URL);
 
 // ============================================================
 // ESTADO
